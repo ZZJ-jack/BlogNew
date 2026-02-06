@@ -1,55 +1,71 @@
 <template>
   <div class="blog-container">
-    <v-card class="pa-4 blog-main-card">
+    <!-- 回到顶部按钮 - 放在最外层确保固定在视口右下角 -->
+    <v-btn
+      fab
+      color="var(--leleo-vcard-color)"
+      :class="['back-to-top-btn', { 'show': showBackToTop }]"
+      @click="backToTop"
+      icon
+    >
+      <v-icon>mdi-arrow-up</v-icon>
+    </v-btn>
+    
+    <v-card class="pa-3 blog-main-card">
       
-      <v-container v-if="!selectedPost" class="blog-list-container">
-        <div v-if="selectedTag" class="filter-info mb-2">
-          <v-chip color="var(--leleo-vcard-color)" closable @click:close="$emit('clearTag')">
-            标签: {{ selectedTag }}
-          </v-chip>
-        </div>
-        <v-card
-          v-for="post in filteredPosts"
-          :key="post.id"
-          class="ma-2 cursor-pointer blog-card"
-          hover
-          @click="selectPost(post)"
-        >
-          <v-card-title style="color: var(--leleo-vcard-color); font-weight: 600;">{{ post.title }}</v-card-title>
-          <v-card-subtitle style="color: rgba(255, 255, 255, 0.7);">
-            {{ post.date }} · {{ post.author }}
-          </v-card-subtitle>
-          <v-card-text style="color: rgba(255, 255, 255, 0.85);">{{ post.excerpt }}</v-card-text>
-          <v-card-actions v-if="post.tags && post.tags.length > 0">
-            <v-chip
-              v-for="tag in post.tags"
-              :key="tag"
-              size="small"
-              class="ma-1"
-              color="var(--leleo-vcard-color)"
-              variant="outlined"
-            >
-              {{ tag }}
+      <transition name="blog-fade" mode="out-in">
+        <v-container v-if="!selectedPost" key="list" class="blog-list-container">
+          <div v-if="selectedTag" class="filter-info mb-2">
+            <v-chip color="var(--leleo-vcard-color)" closable @click:close="$emit('clearTag')">
+              标签: {{ selectedTag }}
             </v-chip>
-          </v-card-actions>
-        </v-card>
-      </v-container>
-      
-      <v-container v-else>
-        <v-btn
-          variant="tonal"
-          color="var(--leleo-vcard-color)"
-          class="mb-4"
-          @click="selectedPost = null"
-        >
-          <v-icon left>mdi-arrow-left</v-icon>
-          返回博客列表
-        </v-btn>
+          </div>
+          <v-card
+            v-for="post in filteredPosts"
+            :key="post.id"
+            class="ma-2 cursor-pointer blog-card"
+            hover
+            @click="selectPost(post)"
+          >
+            <v-card-title style="color: var(--leleo-vcard-color); font-weight: 600;">{{ post.title }}</v-card-title>
+            <v-card-subtitle style="color: rgba(255, 255, 255, 0.7);">
+              {{ post.date }} · {{ post.author }}
+            </v-card-subtitle>
+            <v-card-text style="color: rgba(255, 255, 255, 0.85);">{{ post.excerpt }}</v-card-text>
+            <v-card-actions v-if="post.tags && post.tags.length > 0">
+              <v-chip
+                v-for="tag in post.tags"
+                :key="tag"
+                size="small"
+                class="ma-1"
+                color="var(--leleo-vcard-color)"
+                variant="outlined"
+              >
+                {{ tag }}
+              </v-chip>
+            </v-card-actions>
+          </v-card>
+        </v-container>
         
-        <div class="blog-content-container">
-          <div class="blog-content" v-html="selectedPost.content"></div>
-        </div>
-      </v-container>
+        <v-container v-else key="content">
+          <div class="d-flex align-center mb-4">
+            <v-btn
+              variant="tonal"
+              color="var(--leleo-vcard-color)"
+              class="back-btn"
+              @click="backToList"
+            >
+              <v-icon left>mdi-arrow-left</v-icon>
+              返回博客列表
+            </v-btn>
+            <h1 class="blog-header-title ml-4">{{ selectedPost.title }}</h1>
+          </div>
+          
+          <div class="blog-content-container">
+            <div class="blog-content" v-html="selectedPost.content"></div>
+          </div>
+        </v-container>
+      </transition>
     </v-card>
   </div>
 </template>
@@ -61,7 +77,10 @@ export default {
     return {
       posts: [],
       selectedPost: null,
-      marked: null
+      marked: null,
+      showBackToTop: false,
+      scrollHandler: null,
+      scrollHandlers: []
     };
   },
   computed: {
@@ -97,13 +116,21 @@ export default {
     // 添加代码复制功能
     this.$nextTick(() => {
       this.addCopyButtons();
+      // 添加滚动事件监听器到内容容器
+      this.setupScrollListeners();
     });
   },
   updated() {
     // 在 DOM 更新后添加复制按钮
     this.$nextTick(() => {
       this.addCopyButtons();
+      // 重新设置滚动事件监听器
+      this.setupScrollListeners();
     });
+  },
+  beforeUnmount() {
+    // 移除滚动事件监听器
+    this.removeScrollListeners();
   },
   methods: {
     loadMarked() {
@@ -120,22 +147,7 @@ export default {
             fileList = await indexResponse.json();
           }
         } catch (e) {
-          // 索引文件不存在，使用默认列表
-        }
-        
-        // 如果没有索引文件，使用默认的文件列表
-        if (fileList.length === 0) {
-          fileList = [
-            '2025-04-07-C++-A+B-problem.md',
-            '2025-04-12-Deeply-understand-the-binary-search-algorithm-in-C++.md',
-            '2025-04-14-Luogu-P2392-Problem-Solution-Integration.markdown',
-            '2025-05-05-Luogu-P1032-Problem.markdown',
-            '2025-05-05-Luogu-P1160-Problem.markdown',
-            '2025-10-7-What\'s_DilWorth.md',
-            '2025-10-8-Interval-Dynamic-Programming.md',
-            'example1.md',
-            'example2.md'
-          ];
+          // 索引文件失败
         }
         
         const posts = [];
@@ -290,10 +302,16 @@ export default {
     },
     selectPost(post) {
       this.selectedPost = post;
-      // 选择文章后延迟添加复制按钮，确保 DOM 已更新
-      setTimeout(() => {
-        this.addCopyButtons();
-      }, 100);
+      // 重置回到顶部按钮状态
+      this.showBackToTop = false;
+      
+      // 选择文章后延迟添加复制按钮和滚动监听器，确保 DOM 已更新
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.addCopyButtons();
+          this.setupContentScrollListener();
+        }, 100);
+      });
     },
     addCopyButtons() {
       // 获取博客内容容器中的所有 pre 元素（代码块）
@@ -350,15 +368,140 @@ export default {
         // 将按钮添加到 pre 元素中
         pre.appendChild(copyBtn);
       });
+    },
+    backToTop() {
+      // 平滑滚动到顶部
+      const container = document.querySelector('.blog-list-container, .blog-content-container');
+      if (container) {
+        container.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      } else {
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
+    },
+    backToList() {
+      // 重置回到顶部按钮状态
+      this.showBackToTop = false;
+      // 返回博客列表
+      this.selectedPost = null;
+    },
+    setupScrollListeners() {
+      // 移除旧的监听器
+      this.removeScrollListeners();
+      if (!this.scrollHandlers) this.scrollHandlers = [];
+      
+      // 使用一个统一的处理函数
+      this._scrollHandler = () => this.handleScroll();
+      
+      // 监听 window 的滚动事件（捕获阶段）
+      window.addEventListener('scroll', this._scrollHandler, true);
+      this.scrollHandlers.push({ container: window, handler: this._scrollHandler, useCapture: true });
+      
+      // 监听博客列表容器
+      const listContainer = document.querySelector('.blog-list-container');
+      if (listContainer) {
+        listContainer.addEventListener('scroll', this._scrollHandler);
+        this.scrollHandlers.push({ container: listContainer, handler: this._scrollHandler });
+      }
+    },
+    setupContentScrollListener() {
+      // 专门用于监听博文内容容器的滚动
+      if (this._contentScrollHandler) return; // 避免重复添加
+      
+      const contentContainer = document.querySelector('.blog-content-container');
+      if (contentContainer) {
+        this._contentScrollHandler = () => this.handleScroll();
+        contentContainer.addEventListener('scroll', this._contentScrollHandler);
+        if (!this.scrollHandlers) this.scrollHandlers = [];
+        this.scrollHandlers.push({ container: contentContainer, handler: this._contentScrollHandler });
+      }
+    },
+    removeScrollListeners() {
+      if (this.scrollHandlers) {
+        this.scrollHandlers.forEach(({ container, handler, useCapture }) => {
+          if (container && handler) {
+            container.removeEventListener('scroll', handler, useCapture || false);
+          }
+        });
+        this.scrollHandlers = [];
+      }
+      this._scrollHandler = null;
+      this._contentScrollHandler = null;
+    },
+    handleScroll() {
+      // 获取当前显示的容器
+      const listContainer = document.querySelector('.blog-list-container');
+      const contentContainer = document.querySelector('.blog-content-container');
+      
+      let currentScrollTop = 0;
+      
+      // 根据当前显示的视图获取对应的滚动位置
+      if (this.selectedPost && contentContainer) {
+        // 在博文内容视图中
+        currentScrollTop = contentContainer.scrollTop;
+      } else if (listContainer) {
+        // 在博客列表视图中
+        currentScrollTop = listContainer.scrollTop;
+      }
+      
+      // 只有当滚动超过 100px 时才显示按钮
+      const shouldShow = currentScrollTop > 100;
+      
+      // 避免不必要的更新
+      if (this.showBackToTop !== shouldShow) {
+        this.showBackToTop = shouldShow;
+      }
     }
   }
 };
 </script>
 
 <style>
+/* 引入字魂白鸽天行体 */
+@font-face {
+  font-family: '字魂白鸽天行体';
+  src: url('/fonts/字魂白鸽天行体.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 .blog-container {
   width: 100%;
   min-height: 100%;
+}
+
+/* 回到顶部按钮样式 */
+.back-to-top-btn {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 9999 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
+  opacity: 0;
+  transform: translateY(100px) scale(0.8);
+  visibility: hidden;
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(var(--leleo-blur)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  color: var(--leleo-vcard-color) !important;
+}
+
+.back-to-top-btn.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+}
+
+.back-to-top-btn:hover {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  background-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 /* 博客主卡片样式 - 使用 CSS 变量实现毛玻璃效果 */
@@ -391,7 +534,7 @@ export default {
 
 /* 博客列表容器 */
 .blog-list-container {
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 90px);
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -438,6 +581,22 @@ export default {
   cursor: pointer;
 }
 
+/* 博客列表和内容切换动画 */
+.blog-fade-enter-active,
+.blog-fade-leave-active {
+  transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.blog-fade-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.blog-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
 /* 博客卡片样式 - 使用 CSS 变量实现毛玻璃效果 */
 .blog-card {
   backdrop-filter: blur(var(--leleo-blur)) !important;
@@ -445,12 +604,38 @@ export default {
   border-radius: 8px !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-  transition: all 0.3s ease;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .blog-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+  background-color: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* 返回按钮动画 */
+.back-btn {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.back-btn:hover {
+  transform: translateX(-4px);
+}
+
+/* 博文头部标题样式 */
+.blog-header-title {
+  font-family: '字魂白鸽天行体', sans-serif;
+  font-size: 2.5rem;
+  font-weight: normal;
+  color: var(--leleo-vcard-color);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  letter-spacing: 1px;
+  margin: 0;
+  margin-top: -8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 博客内容容器样式 - 使用 CSS 变量实现毛玻璃效果 */
@@ -461,7 +646,7 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 2rem;
-  max-height: calc(100vh - 120px);
+  max-height: calc(90vh - 98px);
   overflow-y: auto;
 }
 
@@ -505,6 +690,19 @@ export default {
 
 .blog-content {
   line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 博客内容大标题 */
+.blog-content-title {
+  font-size: 4rem;
+  font-weight: normal;
+  margin: 0 0 2rem 0;
+  color: var(--leleo-vcard-color);
+  font-family: '字魂白鸽天行体', sans-serif;
+  text-align: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .blog-content h1 {
@@ -633,7 +831,7 @@ export default {
 /* 代码复制按钮样式 */
 .copy-btn {
   position: absolute;
-  top: 5px;
+  top: 1px;
   right: 10px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -641,7 +839,7 @@ export default {
   padding: 4px 10px;
   cursor: pointer;
   color: #a0a0a0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   transition: all 0.2s ease;
   display: flex;

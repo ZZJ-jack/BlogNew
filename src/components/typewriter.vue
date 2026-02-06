@@ -47,6 +47,13 @@ onMounted(() => {
         font-size: 20px;
     }
 }
+.leleo-typewriter {
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 @media (max-width: 960px){
     .leleo-typewriter{
         min-height: 76px;   

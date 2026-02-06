@@ -120,8 +120,8 @@
                     </v-btn>
                 </v-card>
 
-                <div class="leleo-left-chart">
-                    <polarchart :style="xs||sm?{'height':'210px'}:{'height':'270px'}"/>
+                <div class="leleo-left-typewriter">
+                    <typewriter :configdata="configdata" />
                 </div>
 
                 <v-container class="leleo-left-socialIconsContainer">
@@ -158,7 +158,7 @@
                 </v-container>
             </v-col>
 
-            <v-col cols="12" md="8" lg="9" style="height: 100%; padding: 1rem; overflow-y: auto;">
+            <v-col cols="12" md="7" lg="9" style="height: 100%; padding: 1rem; overflow-y: auto;">
                 <blog 
                     ref="blogComponent"
                     :configdata="configdata" 
@@ -335,14 +335,26 @@
   }
 
   .blog-title {
+    font-family: '字魂白鸽天行体', sans-serif;
+    font-size: 2rem;
+    font-weight: normal;
     color: var(--leleo-vcard-color);
-    font-size: 1.2rem;
-    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    letter-spacing: 2px;
     margin-left: 1rem;
+    margin-top: -5px;
     vertical-align: middle;
+    display: inline-block;
   }
 
   .leleo-left {
     padding-top: 3rem !important;
+  }
+
+  /* 打字机容器样式 */
+  .leleo-left-typewriter {
+    margin: 1rem 0;
+    padding: 0 1rem;
+    text-align: center;
   }
 </style>

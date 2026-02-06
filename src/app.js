@@ -3,7 +3,6 @@ import tab1 from './components/tabs/tab1.vue';
 import tab2 from './components/tabs/tab2.vue';
 import tab3 from './components/tabs/tab3.vue';
 import loader from './components/loader.vue';
-import polarchart from './components/polarchart.vue';
 import blog from './components/blog.vue';
 import config from './config.js';
 import { getCookie } from './utils/cookieUtils.js';
@@ -12,7 +11,7 @@ import { useDisplay } from 'vuetify'
 
 export default {
   components: {
-    tab1,tab2,tab3,loader,typewriter,polarchart,blog
+    tab1,tab2,tab3,loader,typewriter,blog
   },
   setup() {
     const { xs,sm,md } = useDisplay();
