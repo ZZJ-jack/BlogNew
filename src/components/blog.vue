@@ -2,17 +2,36 @@
   <div class="blog-container">
     <v-card class="pa-4 blog-main-card">
       
-      <v-container v-if="!selectedPost">
+      <v-container v-if="!selectedPost" class="blog-list-container">
+        <div v-if="selectedTag" class="filter-info mb-2">
+          <v-chip color="var(--leleo-vcard-color)" closable @click:close="$emit('clearTag')">
+            标签: {{ selectedTag }}
+          </v-chip>
+        </div>
         <v-card
-          v-for="post in posts"
+          v-for="post in filteredPosts"
           :key="post.id"
           class="ma-2 cursor-pointer blog-card"
           hover
           @click="selectPost(post)"
         >
-          <v-card-title style="color: #333;">{{ post.title }}</v-card-title>
-          <v-card-subtitle style="color: #666;">{{ post.date }}</v-card-subtitle>
-          <v-card-text style="color: #444;">{{ post.excerpt }}</v-card-text>
+          <v-card-title style="color: var(--leleo-vcard-color); font-weight: 600;">{{ post.title }}</v-card-title>
+          <v-card-subtitle style="color: rgba(255, 255, 255, 0.7);">
+            {{ post.date }} · {{ post.author }}
+          </v-card-subtitle>
+          <v-card-text style="color: rgba(255, 255, 255, 0.85);">{{ post.excerpt }}</v-card-text>
+          <v-card-actions v-if="post.tags && post.tags.length > 0">
+            <v-chip
+              v-for="tag in post.tags"
+              :key="tag"
+              size="small"
+              class="ma-1"
+              color="var(--leleo-vcard-color)"
+              variant="outlined"
+            >
+              {{ tag }}
+            </v-chip>
+          </v-card-actions>
         </v-card>
       </v-container>
       
@@ -37,7 +56,7 @@
 
 <script>
 export default {
-  props: ['configdata'],
+  props: ['configdata', 'selectedTag'],
   data() {
     return {
       posts: [],
@@ -48,6 +67,19 @@ export default {
   computed: {
     blurValue() {
       return this.configdata?.blur || 5;
+    },
+    filteredPosts() {
+      if (!this.selectedTag) return this.posts;
+      return this.posts.filter(post => post.tags && post.tags.includes(this.selectedTag));
+    },
+    allTags() {
+      const tags = new Set();
+      this.posts.forEach(post => {
+        if (post.tags) {
+          post.tags.forEach(tag => tags.add(tag));
+        }
+      });
+      return Array.from(tags);
     }
   },
   mounted() {
@@ -75,60 +107,87 @@ export default {
   },
   methods: {
     loadMarked() {
-      if (window.marked) {
-        this.marked = window.marked;
-        // 检查 marked 是否是一个函数
-        if (typeof this.marked === 'function') {
-          // 对于较新版本的 marked
-          this.marked.setOptions({
-            breaks: true,
-            gfm: true
-          });
-        } else if (window.marked.parse) {
-          // 对于较新版本的 marked，API 可能有所不同
-          this.marked = window.marked.parse;
-        }
-      }
+      // 直接使用 window.marked
+      this.marked = window.marked;
     },
     async loadPosts() {
       try {
-        // 尝试加载 public/post 目录下的 markdown 文件
-        // 由于是静态网站，我们使用常见的命名格式来尝试加载
-        const commonNames = ['index', 'post1', 'post2', 'article1', 'article2', 'example1', 'example2'];
+        // 尝试加载索引文件
+        let fileList = [];
+        try {
+          const indexResponse = await fetch('/post/index.json');
+          if (indexResponse.ok) {
+            fileList = await indexResponse.json();
+          }
+        } catch (e) {
+          // 索引文件不存在，使用默认列表
+        }
+        
+        // 如果没有索引文件，使用默认的文件列表
+        if (fileList.length === 0) {
+          fileList = [
+            '2025-04-07-C++-A+B-problem.md',
+            '2025-04-12-Deeply-understand-the-binary-search-algorithm-in-C++.md',
+            '2025-04-14-Luogu-P2392-Problem-Solution-Integration.markdown',
+            '2025-05-05-Luogu-P1032-Problem.markdown',
+            '2025-05-05-Luogu-P1160-Problem.markdown',
+            '2025-10-7-What\'s_DilWorth.md',
+            '2025-10-8-Interval-Dynamic-Programming.md',
+            'example1.md',
+            'example2.md'
+          ];
+        }
+        
         const posts = [];
         
-        for (const name of commonNames) {
-          const file = `${name}.md`;
-          const response = await fetch(`/post/${file}`);
+        for (const filename of fileList) {
+          const response = await fetch(`/post/${filename}`);
           if (response.ok) {
             const content = await response.text();
-            const title = this.extractTitle(content);
-            const excerpt = this.extractExcerpt(content);
             
-            // 检查是否已经添加过相同的文章，并跳过无标题的文章
-            const existingPost = posts.find(post => post.id === name);
-            if (!existingPost && title !== '无标题') {
-              let parsedContent = content;
-              if (this.marked) {
-                if (typeof this.marked === 'function') {
-                  // 对于较新版本的 marked，直接调用 parse 方法
-                  parsedContent = this.marked.parse ? this.marked.parse(content) : this.marked(content);
-                } else if (this.marked.parse) {
-                  // 对于对象形式的 marked，使用 parse 方法
-                  parsedContent = this.marked.parse(content);
-                }
+            // 解析 Front Matter 和内容
+            const { frontMatter, body } = this.parseFrontMatter(content);
+            
+            // 提取标题（优先使用 Front Matter 中的 title）
+            let title = frontMatter.title;
+            if (!title) {
+              title = this.extractTitle(body);
+            }
+            
+            // 提取日期（优先使用 Front Matter 中的 date）
+            let date = frontMatter.date;
+            if (!date) {
+              // 尝试从文件名中提取日期
+              const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})/);
+              date = dateMatch ? dateMatch[1] : new Date().toLocaleDateString();
+            }
+            
+            // 提取摘要
+            const excerpt = this.extractExcerpt(body);
+            
+            // 跳过无标题的文章
+            if (title && title !== '无标题') {
+              // 使用 marked 解析 markdown
+              let parsedContent = body;
+              if (window.marked && window.marked.parse) {
+                parsedContent = window.marked.parse(body);
               }
               
               posts.push({
-                id: name,
+                id: filename.replace(/\.(md|markdown)$/i, ''),
                 title: title,
                 content: parsedContent,
                 excerpt: excerpt,
-                date: new Date().toLocaleDateString()
+                date: date,
+                author: frontMatter.author || 'ZZJ',
+                tags: frontMatter.tags || []
               });
             }
           }
         }
+        
+        // 按日期排序（最新的在前）
+        posts.sort((a, b) => new Date(b.date) - new Date(a.date));
         
         // 如果没有找到任何文章，显示一个提示
         if (posts.length === 0) {
@@ -142,6 +201,11 @@ export default {
         }
         
         this.posts = posts;
+        
+        // 更新标签列表（在 posts 赋值后）
+        this.$nextTick(() => {
+          this.$emit('updateTags', this.allTags);
+        });
       } catch (error) {
         console.error('加载博客文章失败:', error);
         
@@ -155,13 +219,74 @@ export default {
         }];
       }
     },
+    parseFrontMatter(content) {
+      const frontMatter = {};
+      let body = content;
+      
+      // 检查是否有 Front Matter
+      const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+      if (match) {
+        const fmText = match[1];
+        body = match[2];
+        
+        // 解析 YAML 格式的 Front Matter
+        const lines = fmText.split('\n');
+        let currentKey = '';
+        let currentValue = '';
+        let inArray = false;
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          
+          // 检查是否是数组项
+          if (trimmed.startsWith('- ')) {
+            if (!inArray) {
+              inArray = true;
+              frontMatter[currentKey] = [];
+            }
+            frontMatter[currentKey].push(trimmed.substring(2).trim());
+          } else {
+            inArray = false;
+            const colonIndex = trimmed.indexOf(':');
+            if (colonIndex > 0) {
+              currentKey = trimmed.substring(0, colonIndex).trim();
+              currentValue = trimmed.substring(colonIndex + 1).trim();
+              // 去除引号
+              if ((currentValue.startsWith('"') && currentValue.endsWith('"')) ||
+                  (currentValue.startsWith("'") && currentValue.endsWith("'"))) {
+                currentValue = currentValue.slice(1, -1);
+              }
+              frontMatter[currentKey] = currentValue;
+            }
+          }
+        }
+      }
+      
+      return { frontMatter, body };
+    },
     extractTitle(content) {
       const match = content.match(/^#\s+(.+)$/m);
       return match ? match[1] : '无标题';
     },
     extractExcerpt(content) {
-      const text = content.replace(/^#\s+.+$/m, '').replace(/\n/g, ' ').trim();
-      return text.length > 100 ? text.substring(0, 100) + '...' : text;
+      // 移除 markdown 标记，提取纯文本
+      let text = content
+        .replace(/^---[\s\S]*?---/m, '') // 移除 Front Matter
+        .replace(/^#{1,6}\s+.+$/gm, '') // 移除所有标题 (h1-h6)
+        .replace(/```[\s\S]*?```/g, '') // 移除代码块
+        .replace(/`([^`]+)`/g, '$1') // 移除行内代码标记
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除加粗
+        .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
+        .replace(/__([^_]+)__/g, '$1') // 移除下划线加粗
+        .replace(/_([^_]+)_/g, '$1') // 移除下划线斜体
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 移除链接，保留文本
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // 移除图片
+        .replace(/>\s?/g, '') // 移除引用标记
+        .replace(/\n/g, ' ') // 换行转空格
+        .replace(/\s+/g, ' ') // 多个空格合并为一个
+        .trim();
+      
+      return text.length > 120 ? text.substring(0, 120) + '...' : text;
     },
     selectPost(post) {
       this.selectedPost = post;
@@ -230,9 +355,10 @@ export default {
 };
 </script>
 
-<style scoped>
+<style>
 .blog-container {
   width: 100%;
+  min-height: 100%;
 }
 
 /* 博客主卡片样式 - 使用 CSS 变量实现毛玻璃效果 */
@@ -242,6 +368,70 @@ export default {
   border-radius: 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.3) !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 博客主卡片滚动条 */
+.blog-main-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.blog-main-card::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.blog-main-card::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.blog-main-card::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 博客列表容器 */
+.blog-list-container {
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* 博客列表滚动条 */
+.blog-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.blog-list-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.blog-list-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.blog-list-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* 博客列表滚动条 */
+.blog-list-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.blog-list-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.blog-list-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.blog-list-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .cursor-pointer {
@@ -271,6 +461,46 @@ export default {
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 2rem;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+/* 博客内容滚动条 */
+.blog-content-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.blog-content-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.blog-content-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.blog-content-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 自定义滚动条样式 */
+.blog-content-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.blog-content-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.blog-content-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.blog-content-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .blog-content {
@@ -305,6 +535,37 @@ export default {
 
 .blog-content li {
   margin: 0.5rem 0;
+}
+
+/* 表格样式 */
+.blog-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.blog-content th,
+.blog-content td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.blog-content th {
+  background-color: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+  color: var(--leleo-vcard-color);
+}
+
+.blog-content tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.blog-content tr:last-child td {
+  border-bottom: none;
 }
 
 .blog-content code {
@@ -384,4 +645,40 @@ export default {
   font-weight: 500;
   transition: all 0.2s ease;
   display: flex;
-  align-items
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #d0d0d0;
+}
+
+.copy-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.copy-btn.copied {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #81c784;
+}
+
+.blog-content blockquote {
+  border-left: 4px solid var(--leleo-vcard-color);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+}
+
+.blog-content a {
+  color: var(--leleo-vcard-color);
+  text-decoration: none;
+}
+
+.blog-content a:hover {
+  text-decoration: underline;
+}
+</style>

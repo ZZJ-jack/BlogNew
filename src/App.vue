@@ -16,7 +16,7 @@
       <v-btn
         variant="tonal"
         color="var(--leleo-vcard-color)"
-        class="zzj-nav-btn"
+        class="zzj-nav-btn mr-3"
         :href="'https://zzjjack.us.kg'"
         target="_blank"
         icon
@@ -47,9 +47,9 @@
       ></v-switch>
     </div>
     
-    <div v-show="!isloading && !isClearScreen" :style="xs||sm?{'overflow-y': 'auto','overflow-x': 'hidden'}:{}">
-        <v-row>
-            <v-col cols="12" md="4" lg="3" class="leleo-left" align="center">
+    <div v-show="!isloading && !isClearScreen" style="height: 100vh; overflow: hidden;">
+        <v-row style="height: 100%; margin: 0;">
+            <v-col cols="12" md="4" lg="3" class="leleo-left" align="center" style="height: 100%; overflow-y: auto;">
               <div :style="xs||sm?{'font-size':'2.3rem'}:{'display':'none'}" class="leleo-left-welcome">{{ configdata.welcometitle }}</div>  
               <v-avatar class="leleo-left-avatar" :size="xs||sm?120:140" :style="xs||sm?{'margin-top': '0'}:{'margin-top': '2rem'}" @mouseenter="musicplayershow(1)" @mouseleave="musicplayershow(0)">
                   <v-img :class="{'leleo-spin':isPlaying}"
@@ -87,11 +87,37 @@
 
                 <v-card class="ma-5 pa-2 leleo-left-card" variant="tonal" :max-width="xs?270:300" style="text-align: center;">
                     <template v-slot:title>
-                    <span>Tags</span>
+                    <span>博客标签</span>
                     </template>
-                    <v-chip v-for="item in personalizedtags" density="compact" link class="ma-1" size="small">
-                    {{item}}
-                    </v-chip>
+                    <div v-if="blogTags.length > 0">
+                        <v-chip 
+                            v-for="tag in blogTags" 
+                            :key="tag"
+                            density="compact" 
+                            class="ma-1" 
+                            size="small"
+                            :color="selectedBlogTag === tag ? 'var(--leleo-vcard-color)' : ''"
+                            :variant="selectedBlogTag === tag ? 'flat' : 'outlined'"
+                            @click="selectBlogTag(tag)"
+                            style="cursor: pointer;"
+                        >
+                            {{ tag }}
+                        </v-chip>
+                    </div>
+                    <div v-else class="text-caption text-grey">
+                        暂无标签
+                    </div>
+                    <v-btn
+                        v-if="selectedBlogTag"
+                        variant="text"
+                        size="small"
+                        color="var(--leleo-vcard-color)"
+                        class="mt-2"
+                        @click="clearBlogTag"
+                    >
+                        <v-icon left size="small">mdi-refresh</v-icon>
+                        重置标签
+                    </v-btn>
                 </v-card>
 
                 <div class="leleo-left-chart">
@@ -132,8 +158,14 @@
                 </v-container>
             </v-col>
 
-            <v-col cols="12" md="8" lg="9" style="height: 100vh;" :style="xs||sm ?{}:{'overflow': 'auto'}">
-                <blog :configdata="configdata"></blog>
+            <v-col cols="12" md="8" lg="9" style="height: 100%; padding: 1rem; overflow-y: auto;">
+                <blog 
+                    ref="blogComponent"
+                    :configdata="configdata" 
+                    :selectedTag="selectedBlogTag"
+                    @clearTag="clearBlogTag"
+                    @updateTags="updateBlogTags"
+                ></blog>
             </v-col>
         </v-row>
     </div>

@@ -67,6 +67,8 @@ export default {
           component: "tab3",
         },
       ],
+      blogTags: [],
+      selectedBlogTag: null,
 
     };
   },
@@ -334,6 +336,15 @@ export default {
     },
     collapseSwitch() {
       this.isExpanded = false;
+    },
+    selectBlogTag(tag) {
+      this.selectedBlogTag = tag;
+    },
+    clearBlogTag() {
+      this.selectedBlogTag = null;
+    },
+    updateBlogTags(tags) {
+      this.blogTags = tags;
     },
   }
 };
