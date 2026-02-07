@@ -13,8 +13,8 @@
     
     <v-card class="pa-3 blog-main-card">
       
-      <transition name="blog-fade" mode="out-in">
-        <v-container v-if="!selectedPost" key="list" class="blog-list-container">
+      <transition name="blog-fade" mode="out-in" @after-enter="onListEnter">
+        <v-container v-if="!selectedPost" key="list" class="blog-list-container" ref="blogListContainer">
           <div v-if="selectedTag" class="filter-info mb-2">
             <v-chip color="var(--leleo-vcard-color)" closable @click:close="$emit('clearTag')">
               标签: {{ selectedTag }}
@@ -23,7 +23,7 @@
           <v-card
             v-for="post in filteredPosts"
             :key="post.id"
-            class="ma-2 cursor-pointer blog-card"
+            class="ma-4 cursor-pointer blog-card"
             hover
             @click="selectPost(post)"
           >
@@ -59,6 +59,16 @@
               返回博客列表
             </v-btn>
             <h1 class="blog-header-title ml-4">{{ selectedPost.title }}</h1>
+            <v-spacer></v-spacer>
+            <v-btn
+              variant="tonal"
+              color="var(--leleo-vcard-color)"
+              class="immersive-btn mr-2"
+              @click="toggleImmersiveMode"
+            >
+              <v-icon left>mdi-fullscreen</v-icon>
+              沉浸阅读
+            </v-btn>
           </div>
           
           <div class="blog-content-container">
@@ -67,6 +77,42 @@
         </v-container>
       </transition>
     </v-card>
+
+    <!-- 沉浸式阅读模式遮罩 - 使用 Teleport 传送到 body -->
+    <teleport to="body">
+      <transition name="immersive-fade">
+        <div v-if="isImmersiveMode" class="immersive-overlay" @click.self="toggleImmersiveMode">
+          <div class="immersive-content">
+            <div class="immersive-header">
+              <h1 class="immersive-title">{{ selectedPost.title }}</h1>
+              <v-btn
+                variant="tonal"
+                color="var(--leleo-vcard-color)"
+                class="immersive-close-btn"
+                @click="toggleImmersiveMode"
+                icon
+              >
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </div>
+            <div class="immersive-body" ref="immersiveBody">
+              <div class="blog-content immersive-blog-content" v-html="selectedPost.content"></div>
+            </div>
+            
+            <!-- 沉浸式阅读回到顶部按钮 -->
+            <v-btn
+              fab
+              color="var(--leleo-vcard-color)"
+              :class="['immersive-back-to-top', { 'show': showImmersiveBackToTop }]"
+              @click="backToTopImmersive"
+              icon
+            >
+              <v-icon>mdi-arrow-up</v-icon>
+            </v-btn>
+          </div>
+        </div>
+      </transition>
+    </teleport>
   </div>
 </template>
 
@@ -80,7 +126,10 @@ export default {
       marked: null,
       showBackToTop: false,
       scrollHandler: null,
-      scrollHandlers: []
+      scrollHandlers: [],
+      isImmersiveMode: false,
+      showImmersiveBackToTop: false,
+      savedScrollPosition: 0
     };
   },
   computed: {
@@ -301,6 +350,13 @@ export default {
       return text.length > 120 ? text.substring(0, 120) + '...' : text;
     },
     selectPost(post) {
+      // 保存当前滚动位置
+      const listContainer = document.querySelector('.blog-list-container');
+      if (listContainer) {
+        this.savedScrollPosition = listContainer.scrollTop;
+        console.log('保存滚动位置:', this.savedScrollPosition);
+      }
+      
       this.selectedPost = post;
       // 重置回到顶部按钮状态
       this.showBackToTop = false;
@@ -313,60 +369,63 @@ export default {
         }, 100);
       });
     },
-    addCopyButtons() {
-      // 获取博客内容容器中的所有 pre 元素（代码块）
-      const container = this.$el.querySelector('.blog-content');
-      if (!container) return;
+    addCopyButtons(container) {
+      // 如果没有传入容器，获取所有博客内容容器
+      const containers = container ? [container] : document.querySelectorAll('.blog-content');
       
-      const codeBlocks = container.querySelectorAll('pre');
-      codeBlocks.forEach(pre => {
-        // 检查是否已经添加了复制按钮
-        if (pre.querySelector('.copy-btn')) return;
+      containers.forEach(cont => {
+        if (!cont) return;
         
-        // 确保 pre 元素有相对定位
-        pre.style.position = 'relative';
-        
-        // 创建复制按钮
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
-        copyBtn.innerHTML = '复制';
-        copyBtn.title = '复制代码';
-        
-        // 添加点击事件
-        copyBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const code = pre.querySelector('code') || pre;
-          const text = code.innerText || code.textContent;
+        const codeBlocks = cont.querySelectorAll('pre');
+        codeBlocks.forEach(pre => {
+          // 检查是否已经添加了复制按钮
+          if (pre.querySelector('.copy-btn')) return;
           
-          // 复制到剪贴板
-          navigator.clipboard.writeText(text).then(() => {
-            copyBtn.innerHTML = '已复制';
-            copyBtn.classList.add('copied');
-            setTimeout(() => {
-              copyBtn.innerHTML = '复制';
-              copyBtn.classList.remove('copied');
-            }, 2000);
-          }).catch(err => {
-            console.error('复制失败:', err);
-            // 降级方案
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            copyBtn.innerHTML = '已复制';
-            copyBtn.classList.add('copied');
-            setTimeout(() => {
-              copyBtn.innerHTML = '复制';
-              copyBtn.classList.remove('copied');
-            }, 2000);
+          // 确保 pre 元素有相对定位
+          pre.style.position = 'relative';
+          
+          // 创建复制按钮
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'copy-btn';
+          copyBtn.innerHTML = '复制';
+          copyBtn.title = '复制代码';
+          
+          // 添加点击事件
+          copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const code = pre.querySelector('code') || pre;
+            const text = code.innerText || code.textContent;
+            
+            // 复制到剪贴板
+            navigator.clipboard.writeText(text).then(() => {
+              copyBtn.innerHTML = '已复制';
+              copyBtn.classList.add('copied');
+              setTimeout(() => {
+                copyBtn.innerHTML = '复制';
+                copyBtn.classList.remove('copied');
+              }, 2000);
+            }).catch(err => {
+              console.error('复制失败:', err);
+              // 降级方案
+              const textarea = document.createElement('textarea');
+              textarea.value = text;
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textarea);
+              copyBtn.innerHTML = '已复制';
+              copyBtn.classList.add('copied');
+              setTimeout(() => {
+                copyBtn.innerHTML = '复制';
+                copyBtn.classList.remove('copied');
+              }, 2000);
+            });
           });
+          
+          // 将按钮添加到 pre 元素中
+          pre.appendChild(copyBtn);
         });
-        
-        // 将按钮添加到 pre 元素中
-        pre.appendChild(copyBtn);
       });
     },
     backToTop() {
@@ -385,10 +444,62 @@ export default {
       }
     },
     backToList() {
-      // 重置回到顶部按钮状态
-      this.showBackToTop = false;
+      // 退出沉浸式模式
+      this.isImmersiveMode = false;
       // 返回博客列表
       this.selectedPost = null;
+    },
+    onListEnter() {
+      // 列表进入动画完成后恢复滚动位置
+      // 使用 setTimeout 确保 DOM 完全渲染
+      setTimeout(() => {
+        const listContainer = document.querySelector('.blog-list-container');
+        if (listContainer && this.savedScrollPosition > 0) {
+          listContainer.scrollTop = this.savedScrollPosition;
+          this.showBackToTop = this.savedScrollPosition > 100;
+        }
+      }, 50);
+    },
+    toggleImmersiveMode() {
+      this.isImmersiveMode = !this.isImmersiveMode;
+      if (this.isImmersiveMode) {
+        // 进入沉浸模式后重置回到顶部按钮状态
+        this.showImmersiveBackToTop = false;
+        // 设置滚动监听
+        this.$nextTick(() => {
+          setTimeout(() => {
+            this.setupImmersiveScrollListener();
+            // 立即检查一次滚动位置
+            this.handleImmersiveScroll();
+            // 为沉浸式内容添加复制按钮
+            const immersiveContent = document.querySelector('.immersive-blog-content');
+            if (immersiveContent) {
+              this.addCopyButtons(immersiveContent);
+            }
+          }, 300);
+        });
+      }
+    },
+    setupImmersiveScrollListener() {
+      const immersiveBody = this.$refs.immersiveBody;
+      if (immersiveBody) {
+        immersiveBody.addEventListener('scroll', this.handleImmersiveScroll);
+      }
+    },
+    handleImmersiveScroll() {
+      const immersiveBody = this.$refs.immersiveBody;
+      if (immersiveBody) {
+        this.showImmersiveBackToTop = immersiveBody.scrollTop > 100;
+      }
+    },
+    backToTopImmersive() {
+      const immersiveBody = this.$refs.immersiveBody;
+      if (immersiveBody) {
+        immersiveBody.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
     },
     setupScrollListeners() {
       // 移除旧的监听器
@@ -478,17 +589,17 @@ export default {
 /* 回到顶部按钮样式 */
 .back-to-top-btn {
   position: fixed !important;
-  bottom: 20px !important;
-  right: 20px !important;
+  bottom: 30px !important;
+  right: 30px !important;
   z-index: 9999 !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
   transition: all 0.3s ease !important;
   opacity: 0;
   transform: translateY(100px) scale(0.8);
   visibility: hidden;
-  background-color: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(var(--leleo-blur)) !important;
-  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
   color: var(--leleo-vcard-color) !important;
 }
 
@@ -501,7 +612,7 @@ export default {
 .back-to-top-btn:hover {
   transform: translateY(-5px) scale(1.05);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  background-color: rgba(255, 255, 255, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.25) !important;
 }
 
 /* 博客主卡片样式 - 使用 CSS 变量实现毛玻璃效果 */
@@ -534,7 +645,7 @@ export default {
 
 /* 博客列表容器 */
 .blog-list-container {
-  max-height: calc(100vh - 90px);
+  height: calc(100vh - 90px);
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -587,6 +698,23 @@ export default {
   transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
+/* 标签筛选信息样式 */
+.filter-info {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.filter-info .v-chip {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  padding: 0 12px !important;
+}
+
 .blog-fade-enter-from {
   opacity: 0;
   transform: translateX(30px);
@@ -604,12 +732,15 @@ export default {
   border-radius: 8px !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.4s ease,
+              background-color 0.3s ease,
+              border-color 0.3s ease;
 }
 
 .blog-card:hover {
-  transform: translateY(-3px) scale(1.01);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18) !important;
   background-color: rgba(255, 255, 255, 0.28) !important;
   border-color: rgba(255, 255, 255, 0.35) !important;
 }
@@ -878,5 +1009,287 @@ export default {
 
 .blog-content a:hover {
   text-decoration: underline;
+}
+
+/* 沉浸式阅读按钮动画 */
+.immersive-btn {
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.immersive-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* 沉浸式模式遮罩 - 使用 Teleport 后样式 */
+.immersive-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(10, 10, 15, 0.98);
+  backdrop-filter: blur(15px);
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.immersive-content {
+  width: 100%;
+  max-width: 1200px;
+  height: 100vh;
+  background-color: rgba(25, 25, 35, 0.98);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.immersive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.immersive-title {
+  font-family: '字魂白鸽天行体', sans-serif;
+  font-size: 2.2rem;
+  font-weight: normal;
+  color: var(--leleo-vcard-color);
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+  margin: 0;
+  letter-spacing: 2px;
+  animation: titleSlideIn 0.6s ease-out 0.2s both;
+}
+
+@keyframes titleSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.immersive-close-btn {
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: fadeInRight 0.6s ease-out 0.3s both;
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.immersive-close-btn:hover {
+  transform: scale(1.15) rotate(90deg);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.immersive-close-btn:active {
+  transform: scale(0.95);
+  transition: transform 0.15s ease;
+}
+
+.immersive-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 3rem 4rem;
+  animation: contentFadeIn 0.8s ease-out 0.4s both;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.immersive-blog-content {
+  max-width: 900px;
+  margin: 0 auto;
+  font-size: 1.15rem;
+  line-height: 1.9;
+}
+
+.immersive-blog-content h1 {
+  font-size: 2.5rem;
+  margin: 2.5rem 0 2rem 0;
+  color: var(--leleo-vcard-color);
+  text-align: center;
+  font-family: '字魂白鸽天行体', sans-serif;
+}
+
+.immersive-blog-content h2 {
+  font-size: 1.8rem;
+  margin: 2.2rem 0 1.2rem 0;
+  color: var(--leleo-vcard-color);
+}
+
+.immersive-blog-content h3 {
+  font-size: 1.4rem;
+  margin: 1.8rem 0 1rem 0;
+  color: var(--leleo-vcard-color);
+}
+
+.immersive-blog-content p {
+  margin: 1.2rem 0;
+}
+
+.immersive-blog-content code {
+  background-color: rgba(255, 255, 255, 0.08);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.95em;
+  color: #e0e0e0;
+}
+
+.immersive-blog-content pre {
+  background-color: #0d0d15 !important;
+  border-radius: 14px;
+  margin: 2rem 0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 沉浸式阅读模式中的复制按钮位置调高一点 */
+.immersive-blog-content pre .copy-btn {
+  top: -1px;
+  right: 10px;
+}
+
+.immersive-blog-content blockquote {
+  border-left: 4px solid var(--leleo-vcard-color);
+  padding-left: 2rem;
+  margin: 2rem 0;
+  background-color: rgba(255, 255, 255, 0.03);
+  padding: 1.2rem 1.5rem 1.2rem 2rem;
+  border-radius: 0 10px 10px 0;
+}
+
+.immersive-blog-content img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 1.5rem 0;
+}
+
+.immersive-blog-content ul,
+.immersive-blog-content ol {
+  padding-left: 2rem;
+  margin: 1.2rem 0;
+}
+
+.immersive-blog-content li {
+  margin: 0.6rem 0;
+  line-height: 1.8;
+}
+
+/* 沉浸式阅读回到顶部按钮 */
+.immersive-back-to-top {
+  position: fixed !important;
+  bottom: 30px !important;
+  right: 30px !important;
+  z-index: 10000 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
+  opacity: 0;
+  transform: translateY(100px) scale(0.8);
+  visibility: hidden;
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: var(--leleo-vcard-color) !important;
+}
+
+.immersive-back-to-top.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+}
+
+.immersive-back-to-top:hover {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  background-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* 沉浸式模式滚动条 */
+.immersive-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.immersive-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.immersive-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.immersive-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 沉浸式模式过渡动画 */
+.immersive-fade-enter-active {
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.immersive-fade-leave-active {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.immersive-fade-enter-from {
+  opacity: 0;
+}
+
+.immersive-fade-enter-from .immersive-content {
+  transform: scale(0.95);
+  opacity: 0;
+  filter: blur(10px);
+}
+
+.immersive-fade-leave-to {
+  opacity: 0;
+}
+
+.immersive-fade-leave-to .immersive-content {
+  transform: scale(0.95);
+  opacity: 0;
+  filter: blur(10px);
+}
+
+.immersive-fade-leave-active .immersive-header,
+.immersive-fade-leave-active .immersive-body {
+  transition: all 0.45s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.immersive-fade-leave-active .immersive-header {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.immersive-fade-leave-active .immersive-body {
+  transform: translateY(10px);
+  opacity: 0;
 }
 </style>

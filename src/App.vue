@@ -51,73 +51,49 @@
         <v-row style="height: 100%; margin: 0;">
             <v-col cols="12" md="4" lg="3" class="leleo-left" align="center" style="height: 100%; overflow-y: auto;">
               <div :style="xs||sm?{'font-size':'2.3rem'}:{'display':'none'}" class="leleo-left-welcome">{{ configdata.welcometitle }}</div>  
-              <v-avatar class="leleo-left-avatar" :size="xs||sm?120:140" :style="xs||sm?{'margin-top': '0'}:{'margin-top': '2rem'}" @mouseenter="musicplayershow(1)" @mouseleave="musicplayershow(0)">
-                  <v-img :class="{'leleo-spin':isPlaying}"
+              <v-avatar class="leleo-left-avatar avatar-animate" :size="xs||sm?170:200" :style="xs||sm?{'margin-top': '0'}:{'margin-top': '2rem'}">
+                  <v-img
                   alt="Leleo"
                   :src=configdata.avatar
+                  class="avatar-img"
                   ></v-img>
-                  <!-- 由于当ismusicplayer显示后，fadein无效果，所以需要设置一个过渡动画 -->
-                  <transition name="fade">
-                  <v-card v-show="ismusicplayer" class="musicplayer" :class="{'fade-in':ismusicplayer}" variant="tonal">
-                      <div v-if="audioLoading" class="loading-spinner">
-                          <v-progress-circular indeterminate></v-progress-circular>
-                      </div>
-                      <span ref="audiotitle" class="musicplayer-text"
-                        style="top: 1.6rem;font-weight: bolder;"
-                      >{{ musicinfo?.[0]?.title }}</span>
-                      <span ref="audioauthor" class="musicplayer-text"
-                        style="bottom: 1.4rem;"
-                      >{{ musicinfo?.[0]?.author }}</span>
-                      <audio v-show="false" ref="audioPlayer" :src="musicinfo?.[0]?.url"
-                      @waiting="onWaiting"
-                      @canplay="onCanPlay">
-                      </audio>
-                      <v-btn :size="xs||sm?22:30" color="#999999" icon @click="previousTrack()">
-                      <v-icon>mdi-skip-previous</v-icon>
-                      </v-btn>
-                      <v-btn :size="xs||sm?35:48" color="#999999" icon @click="togglePlay()">
-                      <v-icon>{{ isPlaying? 'mdi-pause' : 'mdi-play' }}</v-icon>
-                      </v-btn>
-                      <v-btn :size="xs||sm?22:30" color="#999999" icon @click="nextTrack()">
-                      <v-icon>mdi-skip-next</v-icon>
-                      </v-btn>
-                  </v-card>
-                  </transition>
                 </v-avatar>
 
-                <v-card class="ma-5 pa-2 leleo-left-card" variant="tonal" :max-width="xs?270:300" style="text-align: center;">
+                <v-card class="mx-5 mb-5 mt-0 pa-2 leleo-left-card tag-card-animate" variant="tonal" :max-width="xs?320:380" style="text-align: center;">
                     <template v-slot:title>
                     <span>博客标签</span>
                     </template>
-                    <div v-if="blogTags.length > 0">
+                    <div v-if="blogTags.length > 0" class="tag-scroll-container">
                         <v-chip 
                             v-for="tag in blogTags" 
                             :key="tag"
-                            density="compact" 
-                            class="ma-1" 
-                            size="small"
+                            density="comfortable" 
+                            class="ma-1 tag-chip-animate" 
+                            size="default"
                             :color="selectedBlogTag === tag ? 'var(--leleo-vcard-color)' : ''"
                             :variant="selectedBlogTag === tag ? 'flat' : 'outlined'"
                             @click="selectBlogTag(tag)"
-                            style="cursor: pointer;"
+                            style="cursor: pointer; font-size: 14px;"
                         >
                             {{ tag }}
                         </v-chip>
                     </div>
-                    <div v-else class="text-caption text-grey">
+                    <div v-else class="text-caption text-grey" style="min-height: 100px; display: flex; align-items: center; justify-content: center;">
                         暂无标签
                     </div>
-                    <v-btn
-                        v-if="selectedBlogTag"
-                        variant="text"
-                        size="small"
-                        color="var(--leleo-vcard-color)"
-                        class="mt-2"
-                        @click="clearBlogTag"
-                    >
-                        <v-icon left size="small">mdi-refresh</v-icon>
-                        重置标签
-                    </v-btn>
+                    <div style="min-height: 36px;">
+                        <v-btn
+                            v-if="selectedBlogTag"
+                            variant="text"
+                            size="small"
+                            color="var(--leleo-vcard-color)"
+                            class="mt-2"
+                            @click="clearBlogTag"
+                        >
+                            <v-icon left size="small">mdi-refresh</v-icon>
+                            重置标签
+                        </v-btn>
+                    </div>
                 </v-card>
 
                 <div class="leleo-left-typewriter">
@@ -194,21 +170,8 @@
           
           <template v-slot:item="{ item }">
             <v-tabs-window-item :value="item.value" class="pa-4">
-              <div v-if="item.value=='tab-3' && musicinfoLoading" class="loading-spinner" align="center">
-                  <v-progress-circular indeterminate></v-progress-circular>
-              </div>
               <!-- 通过组件绑定不同tab项的组件 -->
-              <component v-if="item.value!='tab-3' || (item.value=='tab-3' && !musicinfoLoading)" :is=item.component @cancel="handleCancel" 
-              :musicinfo="item.value=='tab-3'?musicinfo:[]"
-              :currentIndex="item.value=='tab-3'?playlistIndex:null"
-              :isPlaying="item.value=='tab-3'?isPlaying:null"
-              :audioPlayer="item.value=='tab-3'?audioPlayer:null"
-              :fromLyrics="item.value=='tab-3'?lyrics:null"
-              :audioLoading="item.value=='tab-3'?audioLoading:null"
-              @update:current-index="updateCurrentIndex"
-              @update:is-playing="updateIsPlaying"
-              @update:current-lyrics="updateLyrics"
-              ></component>
+              <component :is=item.component @cancel="handleCancel"></component>
             </v-tabs-window-item>
           </template>
         </v-tabs>
@@ -356,5 +319,91 @@
     margin: 1rem 0;
     padding: 0 1rem;
     text-align: center;
+  }
+
+  /* 头像动画样式 */
+  .avatar-animate {
+    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+
+  .avatar-animate:hover {
+    transform: scale(1.08) translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .avatar-img {
+    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+
+  .avatar-animate:hover .avatar-img {
+    transform: scale(1.05);
+  }
+
+  /* 博客标签卡片动画 */
+  .tag-card-animate {
+    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .tag-card-animate:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    background-color: rgba(255, 255, 255, 0.25) !important;
+  }
+
+  /* 标签 chip 动画 */
+  .tag-chip-animate {
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9) !important;
+  }
+
+  .tag-chip-animate:hover {
+    transform: scale(1.15) translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    background-color: rgba(255, 255, 255, 0.3) !important;
+    border-color: var(--leleo-vcard-color) !important;
+    color: #ffffff !important;
+  }
+
+  /* 被选中的标签样式 - 使用深色背景配主题色边框 */
+  .tag-chip-animate.v-chip--variant-flat {
+    background: rgba(20, 20, 30, 0.95) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    text-shadow: 0 0 0 transparent, 0 2px 4px rgba(0, 0, 0, 0.8);
+    border: 2px solid var(--leleo-vcard-color) !important;
+    box-shadow: 0 0 10px var(--leleo-vcard-color), 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+    transform: scale(1.08);
+  }
+
+  /* 标签滚动容器 */
+  .tag-scroll-container {
+    max-height: 130px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px;
+    margin-bottom: 8px;
+  }
+
+  .tag-scroll-container::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .tag-scroll-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+
+  .tag-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+
+  .tag-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
   }
 </style>

@@ -48,15 +48,18 @@ onMounted(() => {
     }
 }
 .leleo-typewriter {
-    min-height: 100px;
+    height: 120px;
+    min-height: 120px;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
 @media (max-width: 960px){
     .leleo-typewriter{
-        min-height: 76px;   
+        height: 90px;
+        min-height: 90px;
     }
     .msg, .qm{
         font-size: 16px;

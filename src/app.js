@@ -28,13 +28,7 @@ export default {
       dialog2: false,
       personalizedtags: null,
       videosrc: '',
-      ismusicplayer: false,
-      isPlaying:false,
-      playlistIndex: 0,
-      audioLoading: false,
-      musicinfo: null,
-      musicinfoLoading:false,
-      lyrics:{},
+
       socialPlatformIcons: null,
       isExpanded: false,
       stackicons:[
@@ -58,12 +52,6 @@ export default {
           text: '背景',
           value: 'tab-2',
           component: "tab2",
-        },
-        {
-          icon: 'mdi-music-circle-outline',
-          text: '音乐',
-          value: 'tab-3',
-          component: "tab3",
         },
       ],
       blogTags: [],
@@ -144,13 +132,6 @@ export default {
       setInterval(() => {
         this.formattedTime =  this.getFormattedTime(new Date()) ;
       }, 1000);
-
-      await this.getMusicInfo();  //获取音乐数据
-      this.setupAudioListener();  //设置 ended 事件监听器，当歌曲播放结束时自动调用 nextTrack 方法。
-  },
-
-  beforeDestroy() {     //在组件销毁前移除事件监听器，防止内存泄漏。
-    this.$refs.audioPlayer.removeEventListener('ended',  this.nextTrack);
   },
 
   watch:{
@@ -165,9 +146,6 @@ export default {
         this.$refs.VdPlayer.style.zIndex = -100; 
         this.$refs.VdPlayer.controls = false;
       }
-    },
-    audioLoading(val){
-      this.isPlaying = !val;
     }
 
   //若弹出框使得页面播放卡顿，可以先停止背景播放
@@ -181,12 +159,6 @@ export default {
   },
 
   computed: {
-    currentSong() {
-      return this.musicinfo[this.playlistIndex];
-    },
-    audioPlayer() {
-      return this.$refs.audioPlayer;
-    }
   },
   
   methods: {
@@ -264,72 +236,6 @@ export default {
       window.open(url, '_blank').focus();
     },
     
-    async getMusicInfo(){
-      this.musicinfoLoading = true;
-      try {
-        const response = await fetch(`https://api.i-meto.com/meting/api?server=${this.configdata.musicPlayer.server}&type=${this.configdata.musicPlayer.type}&id=${this.configdata.musicPlayer.id}`
-        );
-        if (!response.ok) {
-          throw new Error('网络请求失败');
-        }
-        this.musicinfo = await response.json();
-        this.musicinfoLoading = false;
-      } catch (error) {
-        console.error('请求失败:', error);
-      }
-      
-    },
-    musicplayershow(val) {
-        this.ismusicplayer = val;
-    },
-
-    setupAudioListener() {
-      this.$refs.audioPlayer.addEventListener('ended', this.nextTrack);
-    },
-
-    togglePlay() {
-      if (!this.isPlaying) {
-        this.audioPlayer.play();
-        this.isVdMuted = true;
-      } else {
-        this.audioPlayer.pause();
-        this.isVdMuted = false;
-      }
-      this.isPlaying = !this.musicinfoLoading && !this.isPlaying;
-    },
-    previousTrack() {
-      this.playlistIndex = this.playlistIndex > 0 ? this.playlistIndex - 1 : this.musicinfo.length - 1;
-      this.updateAudio();
-    },
-    nextTrack() {
-      this.playlistIndex = this.playlistIndex < this.musicinfo.length - 1 ? this.playlistIndex + 1 : 0;
-      this.updateAudio();
-    },
-    updateAudio() {
-      this.audioPlayer.src = this.currentSong.url;
-      this.$refs.audiotitle.innerText = this.currentSong.title;
-      this.$refs.audioauthor.innerText = this.currentSong.author;
-      this.isPlaying = true;
-      this.audioPlayer.play();
-    },
-    updateCurrentIndex(index) {
-      this.playlistIndex = index;
-      this.updateAudio();
-    },
-    updateIsPlaying(isPlaying) {
-      this.isPlaying = isPlaying;
-    },
-    updateLyrics(lyrics){
-      this.lyrics = lyrics;
-    },
-    // 监听等待事件（缓冲不足）
-    onWaiting() {
-      this.audioLoading = true;
-    },
-    // 监听可以播放事件（缓冲足够）
-    onCanPlay() {
-      this.audioLoading = false;
-    },
     expandSwitch() {
       this.isExpanded = true;
     },

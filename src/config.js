@@ -71,6 +71,7 @@ const config = {
 	],
 
 	//音乐播放配置，采用MetingJS Api(https://github.com/metowolf/MetingJS)
+	//博客暂时不添加音乐播放功能
 	musicPlayer: {
 		server: 'netease',  //服务提供商 --网易云音乐
 		type: 'playlist',   //歌单类型
