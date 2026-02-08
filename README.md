@@ -1,10 +1,10 @@
-# ZZJ的个人主页项目
+# ZZJ的个人博客项目
 
-> 本项目Fork自leleo886开发的[个人主页项目](https://github.com/leleo886/leleo-home-page)，并进行了大量自定义修改和扩展。
+> 本项目原Fork自[leleo886](https://github.com/leleo886)开发的[个人主页项目](https://github.com/leleo886/leleo-home-page)，并进行了大量自定义修改和扩展。
 
 ## 项目简介
 
-本来是冲浪的时候看到了leleo886的个人主页项目，就觉得自己的主页十分臃肿，就想重新做一个。于是花了不少时间对我的个人主页、博客系统进行了全面重构，新增了导航页。
+本来是冲浪的时候看到了[leleo886](https://github.com/leleo886)开发的[个人主页项目](https://github.com/leleo886/leleo-home-page)，就觉得自己的主页十分臃肿，就想重新做一个。于是花了不少时间对我的个人主页、博客系统进行了全面重构，新增了导航页。
 
 这是一个基于Vue 3 + Vuetify 3构建的现代化个人主页项目，包含个人主页、博客系统和导航页三大模块。采用统一的技术栈，支持响应式设计和丰富的自定义配置。
 
@@ -25,7 +25,6 @@
 - **Vuetify 3**：Material Design风格的UI框架，组件丰富、响应式好
 
 ### 辅助工具
-- **Chart.js**：数据可视化图表
 - **TypeIt**：打字机效果动画
 - **FontAwesome**：图标库
 - **Less**：CSS预处理器
@@ -159,7 +158,7 @@ npm run dev
 
 ## 致谢
 
-感谢[leleo886](https://github.com/leleo886)提供的优秀个人主页项目，为本项目提供了良好的基础。
+感谢[leleo886](https://github.com/leleo886)提供的优秀[个人主页项目](https://github.com/leleo886/leleo-home-page)，为本项目提供了良好的基础。
 
 ## License
 
